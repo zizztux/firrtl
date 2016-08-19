@@ -23,10 +23,18 @@ object RemoveAccesses extends Pass {
     * E.g. if called on a[i] where a: UInt[2], we would return:
     *   Seq(Location(a[0], UIntLiteral(0)), Location(a[1], UIntLiteral(1)))
     */
-  def getLocations(e: Expression): Seq[Location] = e match {
+  val locations = mutable.HashMap[Expression, Seq[Location]]()
+  def getLocations(e: Expression): Seq[Location] = locations.get(e) match {
+    case Some(l) => l
+    case None =>
+      val l = getLocationsRecur(e)
+      locations(e) = l
+      l
+  }
+  def getLocationsRecur(e: Expression): Seq[Location] = e match {
     case e: WRef => create_exps(e).map(Location(_,one))
     case e: WSubIndex =>
-      val ls = getLocations(e.exp)
+      val ls = getLocationsRecur(e.exp)
       val start = get_point(e)
       val end = start + get_size(tpe(e))
       val stride = get_size(tpe(e.exp))
@@ -38,7 +46,7 @@ object RemoveAccesses extends Pass {
       }
       lsx
     case e: WSubField =>
-      val ls = getLocations(e.exp)
+      val ls = getLocationsRecur(e.exp)
       val start = get_point(e)
       val end = start + get_size(tpe(e))
       val stride = get_size(tpe(e.exp))
@@ -48,7 +56,7 @@ object RemoveAccesses extends Pass {
       }
       lsx
     case e: WSubAccess =>
-      val ls = getLocations(e.exp)
+      val ls = getLocationsRecur(e.exp)
       val stride = get_size(tpe(e))
       val wrap = tpe(e.exp).asInstanceOf[VectorType].size
       val lsx = mutable.ArrayBuffer[Location]()
