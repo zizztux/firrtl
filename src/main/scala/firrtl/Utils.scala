@@ -266,8 +266,16 @@ object Utils extends LazyLogging {
          }
       } else UnknownType
    }
+   val muxTypes = mutable.HashMap[Tuple2[Type, Type], Type]()
+   def mux_type_and_widths (t1:Type,t2:Type) : Type = muxTypes.get((t1, t2)) match {
+     case Some(t) => t
+     case None =>
+       val t = mux_type_and_widths_recur(t1, t2)
+       muxTypes((t1, t2)) = t
+       t
+   }
    def mux_type_and_widths (e1:Expression,e2:Expression) : Type = mux_type_and_widths(tpe(e1),tpe(e2))
-   def mux_type_and_widths (t1:Type,t2:Type) : Type = {
+   def mux_type_and_widths_recur (t1:Type,t2:Type) : Type = {
       def wmax (w1:Width,w2:Width) : Width = {
          (w1,w2) match {
             case (w1:IntWidth,w2:IntWidth) => IntWidth(w1.width.max(w2.width))
@@ -280,8 +288,8 @@ object Utils extends LazyLogging {
          (t1,t2) match {
             case (t1:UIntType,t2:UIntType) => UIntType(wmax(t1.width,t2.width))
             case (t1:SIntType,t2:SIntType) => SIntType(wmax(t1.width,t2.width))
-            case (t1:VectorType,t2:VectorType) => VectorType(mux_type_and_widths(t1.tpe,t2.tpe),t1.size)
-            case (t1:BundleType,t2:BundleType) => BundleType((t1.fields zip t2.fields).map{case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe,f2.tpe))})
+            case (t1:VectorType,t2:VectorType) => VectorType(mux_type_and_widths_recur(t1.tpe,t2.tpe),t1.size)
+            case (t1:BundleType,t2:BundleType) => BundleType((t1.fields zip t2.fields).map{case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths_recur(f1.tpe,f2.tpe))})
          }
       } else UnknownType
    }
