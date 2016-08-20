@@ -53,6 +53,22 @@ object ExpandWhens extends Pass {
   def name = "Expand Whens"
 
   // ------------ Pass -------------------
+  private def expandNetlist(netlist: LinkedHashMap[String, Expression], expressions: mutable.HashMap[String, Expression]) =
+    netlist map { case (k, v) =>
+      v match {
+        case WInvalid() => IsInvalid(NoInfo, expressions(k))
+        case _ => Connect(NoInfo, expressions(k), v)
+      }
+    }
+  @tailrec
+  private def getDefault(
+      lvalue: String, 
+      defaults: Seq[collection.mutable.Map[String, Expression]]): Option[Expression] = {
+    if (defaults.isEmpty) None
+    else if (defaults.head.contains(lvalue)) defaults.head.get(lvalue)
+    else getDefault(lvalue, defaults.tail)
+  }
+
   val genMuxes = mutable.HashMap[Tuple3[Expression, Expression, Expression], Expression]()
   def genMux(p: Expression, tv: Expression, fv: Expression): Expression = genMuxes.get((p, tv, fv)) match {
     case Some(e) => e
@@ -61,15 +77,31 @@ object ExpandWhens extends Pass {
       genMuxes((p, tv, fv)) = e
       e
   }
+
+  def run(c: Circuit): Circuit = {
+  // Searches nested scopes of defaults for lvalue
+  // defaults uses mutable Map because we are searching LinkedHashMaps and conversion to immutable is VERY slow
+    def expandWhens(m: Module): (LinkedHashMap[String, Expression], ArrayBuffer[Statement], Statement, mutable.HashMap[String, Expression]) = {
+      val names = mutable.HashMap[Expression, String]()
+      val expressions = mutable.HashMap[String, Expression]()
+      def getName(e: Expression): String = names.get(e) match {
+        case Some(n) => n
+        case None => 
+          val n = e.serialize
+          names(e) = n
+          expressions(n) = e
+          n
+      }
+
   // ========== Expand When Utilz ==========
-  private def getEntries(
-      hash: LinkedHashMap[WrappedExpression, Expression],
-      exps: Seq[Expression]): LinkedHashMap[WrappedExpression, Expression] = {
-    val hashx = LinkedHashMap[WrappedExpression, Expression]()
-    exps foreach (e => if (hash.contains(e)) hashx(e) = hash(e))
+  def getEntries(
+      hash: LinkedHashMap[String, Expression],
+      exps: Seq[Expression]): LinkedHashMap[String, Expression] = {
+    val hashx = LinkedHashMap[String, Expression]()
+    exps foreach (e => if (hash.contains(getName(e))) hashx(getName(e)) = hash(getName(e)))
     hashx
   }
-  private def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
+  def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
     def getGender(t: Type, i: Int, g: Gender): Gender = times(g, get_flip(t, i, Default))
     val exps = create_exps(WRef(n, t, ExpKind(), g))
     val expsx = ArrayBuffer[Expression]()
@@ -81,58 +113,38 @@ object ExpandWhens extends Pass {
     }
     expsx
   }
-  private def expandNetlist(netlist: LinkedHashMap[WrappedExpression, Expression]) =
-    netlist map { case (k, v) =>
-      v match {
-        case WInvalid() => IsInvalid(NoInfo, k.e1)
-        case _ => Connect(NoInfo, k.e1, v)
-      }
-    }
-  // Searches nested scopes of defaults for lvalue
-  // defaults uses mutable Map because we are searching LinkedHashMaps and conversion to immutable is VERY slow
-  @tailrec
-  private def getDefault(
-      lvalue: WrappedExpression, 
-      defaults: Seq[collection.mutable.Map[WrappedExpression, Expression]]): Option[Expression] = {
-    if (defaults.isEmpty) None
-    else if (defaults.head.contains(lvalue)) defaults.head.get(lvalue)
-    else getDefault(lvalue, defaults.tail)
-  }
-
-  // ------------ Pass -------------------
-  def run(c: Circuit): Circuit = {
-    def expandWhens(m: Module): (LinkedHashMap[WrappedExpression, Expression], ArrayBuffer[Statement], Statement) = {
+      println(s"On Module ${m.name}")
       val namespace = Namespace(m)
       val simlist = ArrayBuffer[Statement]()
 
       // defaults ideally would be immutable.Map but conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
       def expandWhens(
-          netlist: LinkedHashMap[WrappedExpression, Expression],
-          defaults: Seq[collection.mutable.Map[WrappedExpression, Expression]],
+          netlist: LinkedHashMap[String, Expression],
+          defaults: Seq[collection.mutable.Map[String, Expression]],
           p: Expression)
           (s: Statement): Statement = {
         s match {
           case w: DefWire =>
-            getFemaleRefs(w.name, w.tpe, BIGENDER) foreach (ref => netlist(ref) = WVoid())
+            getFemaleRefs(w.name, w.tpe, BIGENDER) foreach (ref => netlist(getName(ref)) = WVoid())
             w
           case r: DefRegister =>
-            getFemaleRefs(r.name, r.tpe, BIGENDER) foreach (ref => netlist(ref) = ref)
+            getFemaleRefs(r.name, r.tpe, BIGENDER) foreach (ref => netlist(getName(ref)) = ref)
             r
           case c: Connect =>
-            netlist(c.loc) = c.expr
+            netlist(getName(c.loc)) = c.expr
             EmptyStmt
           case c: IsInvalid =>
-            netlist(c.expr) = WInvalid()
+            netlist(getName(c.expr)) = WInvalid()
             EmptyStmt
           case s: Conditionally =>
             val memos = ArrayBuffer[Statement]()
 
-            val conseqNetlist = LinkedHashMap[WrappedExpression, Expression]()
-            val altNetlist = LinkedHashMap[WrappedExpression, Expression]()
+            val conseqNetlist = LinkedHashMap[String, Expression]()
+            val altNetlist = LinkedHashMap[String, Expression]()
             val conseqStmt = expandWhens(conseqNetlist, netlist +: defaults, AND(p, s.pred))(s.conseq)
             val altStmt = expandWhens(altNetlist, netlist +: defaults, AND(p, NOT(s.pred)))(s.alt)
 
-            (conseqNetlist.keySet ++ altNetlist.keySet) foreach { lvalue =>
+            def exec: Unit = (conseqNetlist.keySet ++ altNetlist.keySet) foreach { lvalue =>
               // Defaults in netlist get priority over those in defaults
               val default = if (netlist.contains(lvalue)) netlist.get(lvalue) else getDefault(lvalue, defaults)
               val res = default match {
@@ -151,11 +163,18 @@ object ExpandWhens extends Pass {
                   conseqNetlist.getOrElse(lvalue, altNetlist(lvalue))
               }
 
-              val memoNode = DefNode(s.info, namespace.newTemp, res)
-              val memoExpr = WRef(memoNode.name, res.tpe, NodeKind(), MALE)
-              memos += memoNode
-              netlist(lvalue) = memoExpr
+              res match {
+                case (_: WInvalid| _: WRef) => 
+                  netlist(lvalue) = res
+                case _ =>
+                  val memoNode = DefNode(s.info, namespace.newTemp, res)
+                  val memoExpr = WRef(memoNode.name, res.tpe, NodeKind(), MALE)
+                  memos += memoNode
+                  netlist(lvalue) = memoExpr
+              }
             }
+            //time(s"when ${s.info}")(exec _)
+            exec
             Block(Seq(conseqStmt, altStmt) ++ memos)
 
           case s: Print =>
@@ -175,22 +194,22 @@ object ExpandWhens extends Pass {
           case s => s map expandWhens(netlist, defaults, p)
         }
       }
-      val netlist = LinkedHashMap[WrappedExpression, Expression]()
+      val netlist = LinkedHashMap[String, Expression]()
 
       // Add ports to netlist
       m.ports foreach { port =>
-        getFemaleRefs(port.name, port.tpe, to_gender(port.direction)) foreach (ref => netlist(ref) = WVoid())
+        getFemaleRefs(port.name, port.tpe, to_gender(port.direction)) foreach (ref => netlist(getName(ref)) = WVoid())
       }
       val bodyx = expandWhens(netlist, Seq(netlist), one)(m.body)
 
-      (netlist, simlist, bodyx)
+      (netlist, simlist, bodyx, expressions)
     }
     val modulesx = c.modules map { m =>
       m match {
         case m: ExtModule => m
         case m: Module =>
-        val (netlist, simlist, bodyx) = expandWhens(m)
-        val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist) ++ simlist)
+        val (netlist, simlist, bodyx, expressions) = expandWhens(m)
+        val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist, expressions) ++ simlist)
         Module(m.info, m.name, m.ports, newBody)
       }
     }
