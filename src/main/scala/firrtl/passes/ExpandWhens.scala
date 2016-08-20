@@ -38,6 +38,7 @@ import firrtl.WrappedExpression._
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.LinkedHashMap
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
 
 import annotation.tailrec
 
@@ -51,6 +52,15 @@ import annotation.tailrec
 object ExpandWhens extends Pass {
   def name = "Expand Whens"
 
+  // ------------ Pass -------------------
+  val genMuxes = mutable.HashMap[Tuple3[Expression, Expression, Expression], Expression]()
+  def genMux(p: Expression, tv: Expression, fv: Expression): Expression = genMuxes.get((p, tv, fv)) match {
+    case Some(e) => e
+    case None =>
+      val e = Mux(p, tv, fv, UnknownType)
+      genMuxes((p, tv, fv)) = e
+      e
+  }
   // ========== Expand When Utilz ==========
   private def getEntries(
       hash: LinkedHashMap[WrappedExpression, Expression],
@@ -133,7 +143,8 @@ object ExpandWhens extends Pass {
                     case (WInvalid(), WInvalid()) => WInvalid()
                     case (WInvalid(), fv) => ValidIf(NOT(s.pred), fv, tpe(fv))
                     case (tv, WInvalid()) => ValidIf(s.pred, tv, tpe(tv))
-                    case (tv, fv) => Mux(s.pred, tv, fv, mux_type_and_widths(tv, fv))
+                    case (tv, fv) => genMux(s.pred, tv, fv)
+                    //case (tv, fv) => Mux(s.pred, tv, fv, mux_type_and_widths(tv, fv))
                   }
                 case None =>
                   // Since not in netlist, lvalue must be declared in EXACTLY one of conseq or alt
