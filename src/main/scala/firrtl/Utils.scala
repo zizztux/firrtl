@@ -46,6 +46,7 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.LinkedHashMap
+import scala.collection.mutable
 //import scala.reflect.runtime.universe._
 
 class FIRRTLException(str: String) extends Exception(str)
