@@ -130,32 +130,32 @@ object fromBits {
 }
 
 object MemPortUtils {
-  def rPortToBundle(mem: DefMemory) =
-    BundleType(Seq(
-      Field("data", Flip, mem.dataType),
-      Field("addr", Default, UIntType(IntWidth(ceil_log2(mem.depth)))),
-      Field("en", Default, UIntType(IntWidth(1))),
-      Field("clk", Default, ClockType)))
-  def wPortToBundle(mem: DefMemory) =
-    BundleType(Seq(
-      Field("data", Default, mem.dataType),
-      Field("mask", Default, create_mask(mem.dataType)),
-      Field("addr", Default, UIntType(IntWidth(ceil_log2(mem.depth)))),
-      Field("en", Default, UIntType(IntWidth(1))),
-      Field("clk", Default, ClockType)))
-  def rwPortToBundle(mem: DefMemory) =
-    BundleType(Seq(
-      Field("wmode", Default, UIntType(IntWidth(1))),
-      Field("data", Default, mem.dataType),
-      Field("rdata", Flip, mem.dataType),
-      Field("mask", Default, create_mask(mem.dataType)),
-      Field("addr", Default, UIntType(IntWidth(ceil_log2(mem.depth)))),
-      Field("en", Default, UIntType(IntWidth(1))),
-      Field("clk", Default, ClockType)))
+  private def addrType(depth: Int) = UIntType(
+    IntWidth(scala.math.max(ceil_log2(depth), 1)))
+  def rPortToBundle(mem: DefMemory) = BundleType(Seq(
+    Field("clk", Default, ClockType),
+    Field("en", Default, BoolType),
+    Field("addr", Default, addrType(mem.depth)),
+    Field("data", Flip, mem.dataType)))
+  def wPortToBundle(mem: DefMemory) = BundleType(Seq(
+    Field("clk", Default, ClockType),
+    Field("en", Default, BoolType),
+    Field("mask", Default, create_mask(mem.dataType)),
+    Field("addr", Default, addrType(mem.depth)),
+    Field("data", Default, mem.dataType)))
+  def rwPortToBundle(mem: DefMemory) = BundleType(Seq(
+    Field("clk", Default, ClockType),
+    Field("en", Default, BoolType),
+    Field("addr", Default, addrType(mem.depth)),
+    Field("rdata", Flip, mem.dataType),
+    Field("wmode", Default, BoolType),
+    Field("wmask", Default, create_mask(mem.dataType)),
+    Field("wdata", Default, mem.dataType)))
   def memToBundle(s: DefMemory) = BundleType(
-    s.readers.map(p => Field(p, Default, rPortToBundle(s))) ++
-      s.writers.map(p => Field(p, Default, wPortToBundle(s))) ++
-      s.readwriters.map(p => Field(p, Default, rwPortToBundle(s))))
+    (s.readers map (Field(_, Flip, rPortToBundle(s)))) ++
+    (s.writers map (Field(_, Flip, wPortToBundle(s)))) ++
+    (s.readwriters map (Field(_, Flip, rwPortToBundle(s))))
+  )
   def kind(s: DefMemory) = MemKind(s.readers ++ s.writers ++ s.readwriters)
   def memPortField(s: DefMemory, p: String, f: String) = {
     val mem = WRef(s.name, memToBundle(s), kind(s), UNKNOWNGENDER)
