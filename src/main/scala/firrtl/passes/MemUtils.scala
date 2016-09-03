@@ -36,96 +36,91 @@ object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
     case 0 => error("Empty Seq passed to seqcat")
     case 1 => args(0)
-    case 2 => DoPrim(PrimOps.Cat, args, Seq.empty[BigInt], UIntType(UnknownWidth))
-    case _ => {
-      val seqs = args.splitAt(args.length/2)
-      DoPrim(PrimOps.Cat, Seq(seqCat(seqs._1),seqCat(seqs._2)), Seq.empty[BigInt], UIntType(UnknownWidth))
-    }
+    case 2 => DoPrim(PrimOps.Cat, args, Nil, UIntType(UnknownWidth))
+    case _ =>
+      val (high, low) = args splitAt (args.length / 2)
+      DoPrim(PrimOps.Cat, Seq(seqCat(high), seqCat(low)), Nil, UIntType(UnknownWidth))
   }
 }
 
 object toBits {
   def apply(e: Expression): Expression = e match {
-    case ex: WRef => hiercat(ex,ex.tpe)
-    case ex: WSubField => hiercat(ex,ex.tpe)
-    case ex: WSubIndex => hiercat(ex,ex.tpe)
+    case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiercat(ex, ex.tpe)
     case t => error("Invalid operand expression for toBits!")
   }
-  def hiercat(e: Expression, dt: Type): Expression = dt match {
-    case t:VectorType => seqCat((0 to t.size).map(i => hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER),t.tpe)))
-    case t:BundleType => seqCat(t.fields.map(f => hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER), f.tpe)))
-    case t:GroundType => e
+  private def hiercat(e: Expression, dt: Type): Expression = dt match {
+    case t: VectorType => seqCat((0 until t.size) map (i =>
+      hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER),t.tpe)))
+    case t: BundleType => seqCat(t.fields map (f =>
+      hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER), f.tpe)))
+    case t: GroundType => e
     case t => error("Unknown type encountered in toBits!")
   }
 }
 
 object toBitMask {
   def apply(e: Expression, dataType: Type): Expression = e match {
-    case ex: WRef => hiermask(ex,ex.tpe,dataType)
-    case ex: WSubField => hiermask(ex,ex.tpe,dataType)
-    case ex: WSubIndex => hiermask(ex,ex.tpe,dataType)
+    case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiermask(ex, ex.tpe, dataType)
     case t => error("Invalid operand expression for toBits!")
   }
-  def hiermask(e: Expression, maskType: Type, dataType: Type): Expression = (maskType, dataType) match {
-    case (mt:VectorType, dt:VectorType) => seqCat((0 to mt.size).map(i => hiermask(WSubIndex(e, i, mt.tpe, UNKNOWNGENDER), mt.tpe, dt.tpe)))
-    case (mt:BundleType, dt:BundleType) => seqCat((mt.fields zip dt.fields).map{ case (mf,df) =>
+  private def hiermask(e: Expression, maskType: Type, dataType: Type): Expression = (maskType, dataType) match {
+    case (mt: VectorType, dt: VectorType) => seqCat(0 until mt.size map { i =>
+      hiermask(WSubIndex(e, i, mt.tpe, UNKNOWNGENDER), mt.tpe, dt.tpe) })
+    case (mt: BundleType, dt: BundleType) => seqCat(mt.fields zip dt.fields map { case (mf, df) =>
       hiermask(WSubField(e, mf.name, mf.tpe, UNKNOWNGENDER), mf.tpe, df.tpe) })
-    case (mt:UIntType, dt:GroundType) => seqCat(List.fill(bitWidth(dt).intValue)(e))
+    case (mt: UIntType, dt: GroundType) => seqCat(List.fill(bitWidth(dt).intValue)(e))
     case (mt, dt) => error("Invalid type for mask component!")
   }
 }
 
 object bitWidth {
   def apply(dt: Type): BigInt = widthOf(dt)
-  def widthOf(dt: Type): BigInt = dt match {
-    case t:VectorType => t.size * bitWidth(t.tpe)
-    case t:BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
+  private def widthOf(dt: Type): BigInt = dt match {
+    case t: VectorType => t.size * bitWidth(t.tpe)
+    case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
     case UIntType(IntWidth(width)) => width
     case SIntType(IntWidth(width)) => width
-    case t => error("Unknown type encountered in bitWidth!")
+    case _ => error("Unknown type encountered in bitWidth!")
   }
 }
 
 object fromBits {
   def apply(lhs: Expression, rhs: Expression): Statement = {
     val fbits = lhs match {
-      case ex: WRef => getPart(ex, ex.tpe, rhs, 0)
-      case ex: WSubField => getPart(ex, ex.tpe, rhs, 0)
-      case ex: WSubIndex => getPart(ex, ex.tpe, rhs, 0)
-      case t => error("Invalid LHS expression for fromBits!")
+      case ex @ (_: WRef | _: WSubField | _: WSubIndex) => getPart(ex, ex.tpe, rhs, 0)
+      case _ => error("Invalid LHS expression for fromBits!")
     }
     Block(fbits._2)
   }
-  def getPartGround(lhs: Expression, lhst: Type, rhs: Expression, offset: BigInt): (BigInt, Seq[Statement]) = {
+  private def getPartGround(lhs: Expression, lhst: Type, rhs: Expression,
+      offset: BigInt): (BigInt, Seq[Statement]) = {
     val intWidth = bitWidth(lhst)
-    val sel = DoPrim(PrimOps.Bits, Seq(rhs), Seq(offset+intWidth-1,offset), UnknownType)
-    (offset + intWidth, Seq(Connect(NoInfo,lhs,sel)))
+    val sel = DoPrim(PrimOps.Bits, Seq(rhs), Seq(offset + intWidth - 1, offset), UnknownType)
+    (offset + intWidth, Seq(Connect(NoInfo, lhs, sel)))
   }
-  def getPart(lhs: Expression, lhst: Type, rhs: Expression, offset: BigInt): (BigInt, Seq[Statement]) = {
-    lhst match {
-      case t:VectorType => {
-        var currentOffset = offset
-        var stmts = Seq.empty[Statement]
-        for (i <- (0 to t.size)) {
-          val (tmpOffset, substmts) = getPart(WSubIndex(lhs, i, t.tpe, UNKNOWNGENDER), t.tpe, rhs, currentOffset)
-          stmts = stmts ++ substmts
-          currentOffset = tmpOffset
-        }
-        (currentOffset, stmts)
-      }
-      case t:BundleType => {
-        var currentOffset = offset
-        var stmts = Seq.empty[Statement]
-        for (f <- t.fields.reverse) {
-          val (tmpOffset, substmts) = getPart(WSubField(lhs, f.name, f.tpe, UNKNOWNGENDER), f.tpe, rhs, currentOffset)
-          stmts = stmts ++ substmts
-          currentOffset = tmpOffset
-        }
-        (currentOffset, stmts)
-      }
-      case t:GroundType => getPartGround(lhs, t, rhs, offset)
-      case t => error("Unknown type encountered in fromBits!")
+  private def getPart(lhs: Expression, lhst: Type, rhs: Expression,
+      offset: BigInt): (BigInt, Seq[Statement]) = lhst match {
+    case t: VectorType => (0 until t.size foldRight (offset, Seq[Statement]())){ case (i, (curOffset, stmts)) =>
+      val subidx = WSubIndex(lhs, i, t.tpe, UNKNOWNGENDER)
+      val (tmpOffset, substmts) = getPart(subidx, t.tpe, rhs, curOffset)
+      (tmpOffset, stmts ++ substmts)
     }
+    case t: BundleType => (t.fields foldRight (offset, Seq[Statement]())){ case (f, (curOffset, stmts)) =>
+      val subfield = WSubField(lhs, f.name, f.tpe, UNKNOWNGENDER)
+      val (tmpOffset, substmts) = getPart(subfield, f.tpe, rhs, curOffset)
+      (tmpOffset, stmts ++ substmts)
+    }
+    case t: GroundType => getPartGround(lhs, t, rhs, offset)
+    case t => error("Unknown type encountered in fromBits!")
+  }
+}
+
+object createMask {
+  def apply(dt: Type): Type = dt match {
+    case t: VectorType => VectorType(apply(t.tpe), t.size)
+    case t: BundleType => BundleType(t.fields map (f => f copy (tpe=apply(f.tpe))))
+    case t: UIntType => BoolType
+    case t: SIntType => BoolType
   }
 }
 
@@ -140,7 +135,7 @@ object MemPortUtils {
   def wPortToBundle(mem: DefMemory) = BundleType(Seq(
     Field("clk", Default, ClockType),
     Field("en", Default, BoolType),
-    Field("mask", Default, create_mask(mem.dataType)),
+    Field("mask", Default, createMask(mem.dataType)),
     Field("addr", Default, addrType(mem.depth)),
     Field("data", Default, mem.dataType)))
   def rwPortToBundle(mem: DefMemory) = BundleType(Seq(
@@ -149,7 +144,7 @@ object MemPortUtils {
     Field("addr", Default, addrType(mem.depth)),
     Field("rdata", Flip, mem.dataType),
     Field("wmode", Default, BoolType),
-    Field("wmask", Default, create_mask(mem.dataType)),
+    Field("wmask", Default, createMask(mem.dataType)),
     Field("wdata", Default, mem.dataType)))
   def memToBundle(s: DefMemory) = BundleType(
     (s.readers map (Field(_, Flip, rPortToBundle(s)))) ++

@@ -89,21 +89,14 @@ object Utils extends LazyLogging {
   val BoolType = UIntType(IntWidth(1))
   val one  = UIntLiteral(BigInt(1),IntWidth(1))
   val zero = UIntLiteral(BigInt(0),IntWidth(1))
-  def uint (i:Int) : UIntLiteral = {
+  def uint(i: Int) : UIntLiteral = {
     val num_bits = req_num_bits(i)
     val w = IntWidth(scala.math.max(1,num_bits - 1))
     UIntLiteral(BigInt(i),w)
   }
-  def req_num_bits (i: Int) : Int = {
+  def req_num_bits(i: Int) : Int = {
     val ix = if (i < 0) ((-1 * i) - 1) else i
     ceil_log2(ix + 1) + 1
-  }
-
-  def create_mask(dt: Type): Type = dt match {
-    case t: VectorType => VectorType(create_mask(t.tpe),t.size)
-    case t: BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
-    case t: UIntType => BoolType
-    case t: SIntType => BoolType
   }
 
   def create_exps(n: String, t: Type): Seq[Expression] =
