@@ -160,9 +160,8 @@ object MemPortUtils {
     (s.writers map (Field(_, Flip, wPortToBundle(s)))) ++
     (s.readwriters map (Field(_, Flip, rwPortToBundle(s))))
   )
-  def kind(s: DefMemory) = MemKind(s.readers ++ s.writers ++ s.readwriters)
   def memPortField(s: DefMemory, p: String, f: String) = {
-    val mem = WRef(s.name, memToBundle(s), kind(s), UNKNOWNGENDER)
+    val mem = WRef(s.name, memToBundle(s), MemKind, UNKNOWNGENDER)
     val t1 = field_type(mem.tpe, p)
     val t2 = field_type(t1, f)
     WSubField(WSubField(mem, p, t1, UNKNOWNGENDER), f, t2, UNKNOWNGENDER)
