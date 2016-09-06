@@ -133,6 +133,7 @@ case class DefMemory(
     readers: Seq[String],
     writers: Seq[String],
     readwriters: Seq[String],
+    maskGran: Option[Int] = None,
     // TODO: handle read-under-write
     readUnderWrite: Option[String] = None) extends Statement with IsDeclaration {
   def serialize: String =
@@ -145,7 +146,8 @@ case class DefMemory(
           (readers map ("reader => " + _)) ++
           (writers map ("writer => " + _)) ++
           (readwriters map ("readwriter => " + _)) ++
-       Seq("read-under-write => undefined")) mkString "\n")
+       Seq("mask-gran => " + (maskGran getOrElse "undefined"),
+           "read-under-write => " + (readUnderWrite getOrElse "undefined"))) mkString "\n")
 }
 case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration {
   def serialize: String = s"node $name = ${value.serialize}" + info.serialize

@@ -162,54 +162,52 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     val readers = mutable.ArrayBuffer.empty[String]
     val writers = mutable.ArrayBuffer.empty[String]
     val readwriters = mutable.ArrayBuffer.empty[String]
-    case class ParamValue(typ: Option[Type] = None, lit: Option[Int] = None, ruw: Option[String] = None, unique: Boolean = true)
-    val fieldMap = mutable.HashMap[String, ParamValue]()
-
-    def parseMemFields(memFields: Seq[MemFieldContext]): Unit =
-      memFields.foreach { field =>
-        val fieldName = field.children(0).getText
-
-        fieldName match {
-          case "reader" => readers ++= field.id().map(_.getText)
-          case "writer" => writers ++= field.id().map(_.getText)
-          case "readwriter" => readwriters ++= field.id().map(_.getText)
-          case _ =>
-            val paramDef = fieldName match {
-              case "data-type" => ParamValue(typ = Some(visitType(field.`type`())))
-              case "read-under-write" => ParamValue(ruw = Some(field.ruw().getText)) // TODO
-              case _ => ParamValue(lit = Some(field.IntLit().getText.toInt))
-            }
-            if (fieldMap.contains(fieldName))
-              throw new ParameterRedefinedException(s"Redefinition of $fieldName in FIRRTL line:${field.start.getLine}")
-            else
-              fieldMap += fieldName -> paramDef
-        }
-      }
 
     val info = visitInfo(Option(ctx.info), ctx)
-
-    // Build map of different Memory fields to their values
-    try {
-      parseMemFields(ctx.memField())
-    } catch {
-      // attach line number
-      case e: ParameterRedefinedException => throw new ParameterRedefinedException(s"[$info] ${e.message}")
-    }
+    val fieldMap = (ctx.memField() foldLeft Map[String, Any]())((map, field) =>
+      field.children(0).getText match {
+        case "reader" =>
+          readers ++= field.id() map (_.getText)
+          map
+        case "writer" =>
+          writers ++= field.id() map (_.getText)
+          map
+        case "readwriter" =>
+          readwriters ++= field.id() map (_.getText)
+          map
+        case fieldName if map contains fieldName => throw new ParameterRedefinedException(
+          s"[$info] Redefinition of $fieldName in FIRRTL line:${field.start.getLine}")
+        case fieldName => map + (fieldName -> (fieldName match {
+          case "data-type" => visitType(field.`type`())
+          case "mask-gran" => field.mg().getText match {
+            case "undefined" => None
+            case mg => Some(mg.toInt)
+          }
+          case "read-under-write" => field.ruw().getText match {
+            case "undefined" => None
+            case ruw => Some(ruw)
+          }
+          case _ => field.IntLit().getText.toInt
+        }))
+      }
+    )
 
     // Check for required fields
-    Seq("data-type", "depth", "read-latency", "write-latency") foreach { field =>
-      fieldMap.getOrElse(field, throw new ParameterNotSpecifiedException(s"[$info] Required mem field $field not found"))
+    Seq("data-type", "depth", "read-latency", "write-latency") foreach {
+      case field if fieldMap contains field =>
+      case field => throw new ParameterNotSpecifiedException(
+        s"[$info] Required mem field $field not found")
     }
 
-    def lit(param: String) = fieldMap(param).lit.get
-    val ruw = fieldMap.get("read-under-write").map(_.ruw).getOrElse(None)
-
+    def lit(param: String): Int = fieldMap(param) match { case lit: Int => lit }
     DefMemory(info,
-      name = ctx.id(0).getText, dataType = fieldMap("data-type").typ.get,
+      name = ctx.id(0).getText,
+      dataType = fieldMap("data-type") match { case t: Type => t },
       depth = lit("depth"),
       writeLatency = lit("write-latency"), readLatency = lit("read-latency"),
       readers = readers, writers = writers, readwriters = readwriters,
-      readUnderWrite = ruw
+      maskGran = (fieldMap get ("mask-gran")).asInstanceOf[Option[Int]],
+      readUnderWrite = (fieldMap get ("read-under-write")).asInstanceOf[Option[String]]
     )
   }
 

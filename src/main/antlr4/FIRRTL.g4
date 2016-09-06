@@ -126,6 +126,7 @@ memField
 	| 'depth' '=>' IntLit NEWLINE
 	| 'read-latency' '=>' IntLit NEWLINE
 	| 'write-latency' '=>' IntLit NEWLINE
+	| 'mask-gran' '=>' mg NEWLINE
 	| 'read-under-write' '=>' ruw NEWLINE
 	| 'reader' '=>' id+ NEWLINE
 	| 'writer' '=>' id+ NEWLINE
@@ -161,6 +162,11 @@ mdir
   | 'read'
   | 'write'
   | 'rdwr'
+  ;
+
+mg
+  : 'undefined'
+  | IntLit
   ;
 
 ruw
