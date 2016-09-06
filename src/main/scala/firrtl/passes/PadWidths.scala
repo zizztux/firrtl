@@ -1,7 +1,7 @@
 package firrtl
 package passes
 
-import firrtl.Mappers.{ExpMap, StmtMap}
+import firrtl.Mappers._
 import firrtl.Utils.{tpe, long_BANG}
 import firrtl.PrimOps._
 import firrtl.ir._

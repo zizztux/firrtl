@@ -4,7 +4,7 @@ package passes
 // Datastructures
 import scala.collection.mutable
 
-import firrtl.Mappers.{ExpMap,StmtMap}
+import firrtl.Mappers._
 import firrtl.Utils.WithAs
 import firrtl.ir._
 import firrtl.passes.{PassException,PassExceptions}
