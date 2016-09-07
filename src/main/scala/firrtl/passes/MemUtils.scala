@@ -144,7 +144,10 @@ object MemPortUtils {
   def wPortToBundle(mem: DefMemory) = BundleType(Seq(
     Field("clk", Default, ClockType),
     Field("en", Default, BoolType),
-    Field("mask", Default, createMask(mem.dataType)),
+    Field("mask", Default, mem.maskGran match {
+      case None => createMask(mem.dataType))
+      case Some(mg) => UIntType(IntWidth(bitWidth(mem.dataType) / mg))
+    },
     Field("addr", Default, addrType(mem.depth)),
     Field("data", Default, mem.dataType)))
   def rwPortToBundle(mem: DefMemory) = BundleType(Seq(
@@ -153,7 +156,10 @@ object MemPortUtils {
     Field("addr", Default, addrType(mem.depth)),
     Field("rdata", Flip, mem.dataType),
     Field("wmode", Default, BoolType),
-    Field("wmask", Default, createMask(mem.dataType)),
+    Field("wmask", Default, mem.maskGran match {
+      case None => createMask(mem.dataType))
+      case Some(mg) => UIntType(IntWidth(bitWidth(mem.dataType) / mg))
+    },
     Field("wdata", Default, mem.dataType)))
   def memToBundle(s: DefMemory) = BundleType(
     (s.readers map (Field(_, Flip, rPortToBundle(s)))) ++
