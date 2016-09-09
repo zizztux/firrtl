@@ -211,8 +211,28 @@ abstract class Width extends FirrtlNode {
   }
 }
 /** Positive Integer Bit Width of a [[GroundType]] */
-case class IntWidth(width: BigInt) extends Width {
+object IntWidth {
+  private val maxCached = 1024
+  private val cache = new Array[IntWidth](maxCached)
+  def apply(width: BigInt): IntWidth = {
+    if (1 <= width && width <= maxCached) {
+      val i = width.toInt - 1
+      var w = cache(i)
+      if (w eq null) {
+        w = new IntWidth(width) ; cache(i) = w
+      }
+      w
+    } else new IntWidth(width)
+  }
+  // For pattern matching
+  def unapply(w: IntWidth): Option[BigInt] = Some(w.width)
+}
+class IntWidth(val width: BigInt) extends Width {
   def serialize: String = s"<$width>"
+  override def equals(that: Any) = that match {
+    case IntWidth(w) => w == width
+    case _ => false
+  }
 }
 case object UnknownWidth extends Width {
   def serialize: String = ""
