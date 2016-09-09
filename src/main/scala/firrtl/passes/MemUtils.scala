@@ -195,7 +195,7 @@ object MemPortUtils {
 
   def rwPortToFlattenBundle(mem: DefMemory) = BundleType(
     defaultPortSeq(mem) ++ Seq(
-      Field("wmode", Default, UIntType(IntWidth(1))),
+      Field("wmode", Default, BoolType),
       Field("wdata", Default, flattenType(mem.dataType)),
       Field("rdata", Flip, flattenType(mem.dataType))
     ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
@@ -222,7 +222,7 @@ object MemPortUtils {
       Field("mask", Default, createMask(mem.dataType))))
     val rwType = BundleType(defaultPortSeq(mem) ++ Seq(
       Field("rdata", Flip, mem.dataType),
-      Field("wmode", Default, UIntType(IntWidth(1))),
+      Field("wmode", Default, BoolType),
       Field("wdata", Default, mem.dataType),
       Field("wmask", Default, createMask(mem.dataType))))
     BundleType(

@@ -199,7 +199,7 @@ object Legalize extends Pass {
       val width = bitWidth(e.args.head.tpe)
       lazy val msb = width - 1
       if (amount >= width) e.tpe match {
-        case t: UIntType => UIntLiteral(0, IntWidth(1))
+        case t: UIntType => zero
         case t: SIntType =>
           DoPrim(Bits, e.args, Seq(msb, msb), SIntType(IntWidth(1)))
         case t => error(s"Unsupported type ${t} for Primop Shift Right")
