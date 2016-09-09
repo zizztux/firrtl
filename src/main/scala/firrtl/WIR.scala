@@ -61,11 +61,11 @@ case class WSubIndex(exp: Expression, value: Int, tpe: Type, gender: Gender) ext
 case class WSubAccess(exp: Expression, index: Expression, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${exp.serialize}[${index.serialize}]"
 }
-case class WVoid() extends Expression {
+case object WVoid extends Expression {
   def tpe = UnknownType
   def serialize: String = "VOID"
 }
-case class WInvalid() extends Expression {
+case object WInvalid extends Expression {
   def tpe = UnknownType
   def serialize: String = "INVALID"
 }
@@ -101,8 +101,8 @@ class WrappedExpression (val e1: Expression) {
        case (e1: WSubField, e2: WSubField) => (e1.name equals e2.name) && weq(e1.exp,e2.exp)
        case (e1: WSubIndex, e2: WSubIndex) => (e1.value == e2.value) && weq(e1.exp,e2.exp)
        case (e1: WSubAccess, e2: WSubAccess) => weq(e1.index,e2.index) && weq(e1.exp,e2.exp)
-       case (e1: WVoid, e2: WVoid) => true
-       case (e1: WInvalid, e2: WInvalid) => true
+       case (WVoid, WVoid) => true
+       case (WInvalid, WInvalid) => true
        case (e1: DoPrim, e2: DoPrim) => e1.op == e2.op &&
           ((e1.consts zip e2.consts) forall {case (x, y) => x == y}) &&
           ((e1.args zip e2.args) forall {case (x, y) => weq(x, y)})
