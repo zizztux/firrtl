@@ -138,7 +138,7 @@ object MemPortUtils {
   def flattenType(t: Type) = UIntType(IntWidth(bitWidth(t)))
 
   def defaultPortSeq(mem: DefMemory) = Seq(
-    Field("addr", Default, UIntType(IntWidth(ceil_log2(mem.depth)))),
+    Field("addr", Default, UIntType(IntWidth(1 max ceilLog2(mem.depth)))),
     Field("en", Default, UIntType(IntWidth(1))),
     Field("clk", Default, ClockType)
   )
