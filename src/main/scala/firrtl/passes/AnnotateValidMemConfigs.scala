@@ -13,6 +13,8 @@ import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import scala.collection.mutable
 import java.io.{File, CharArrayWriter, PrintWriter}
 
+import scala.language.postfixOps
+
 object CustomYAMLProtocol extends DefaultYamlProtocol {
   // bottom depends on top
   implicit val dr = yamlFormat4(DimensionRules)

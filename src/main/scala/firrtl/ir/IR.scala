@@ -30,6 +30,8 @@ package ir
 
 import Utils.indent
 
+import scala.language.postfixOps
+
 /** Intermediate Representation */
 abstract class FirrtlNode {
   def serialize: String
