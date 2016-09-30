@@ -203,6 +203,7 @@ class VerilogCompiler extends Compiler {
   def transforms(writer: Writer): Seq[Transform] = Seq(
     new Chisel3ToHighFirrtl,
     new IRToWorkingIR,
+    firrtl.transforms.DedupModules,
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
     new passes.InferReadWrite(TransID(-1)),

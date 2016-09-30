@@ -8,6 +8,8 @@ import firrtl.{Parser,FIRRTLEmitter}
 import firrtl.ir.Circuit
 import firrtl.Parser.IgnoreInfo
 import firrtl.passes.{Pass, PassExceptions}
+import firrtl.Mappers._
+import firrtl.Utils
 import firrtl.{
    Transform,
    TransformResult,
@@ -28,13 +30,14 @@ import firrtl.Annotations.AnnotationMap
 abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler with LazyLogging {
    // Utility function
    def parse(s: String): Circuit = Parser.parse(s.split("\n").toIterator, infoMode = IgnoreInfo)
+   def squash(c: Circuit): Circuit = c.copy(modules = c.modules.map(_ map Utils.squashEmpty))
 
    // Executes the test. Call in tests.
    def execute(writer: Writer, annotations: AnnotationMap, input: String, check: String) = {
       compile(parse(input), annotations, writer)
       logger.debug(writer.toString)
       logger.debug(check)
-      (parse(writer.toString)) should be (parse(check))
+      (squash(parse(writer.toString))) should be (squash(parse(check)))
    }
    // Executes the test, should throw an error
    def failingexecute(writer: Writer, annotations: AnnotationMap, input: String): Exception = {
