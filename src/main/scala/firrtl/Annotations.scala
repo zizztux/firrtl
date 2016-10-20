@@ -50,12 +50,6 @@ object Annotations {
   case class ComponentName(name: String, module: ModuleName) extends Named
 
   /**
-   * Transform ID (TransID) associates an annotation with an instantiated
-   * Firrtl compiler transform
-   */
-  case class TransID(id: Int)
-
-  /**
    * Permissibility defines the range of acceptable changes to the annotated component.
    */
   trait Permissibility {
@@ -158,7 +152,7 @@ object Annotations {
    */
   trait Annotation extends Permissibility with Tenacity {
     def target: Named
-    def tID: TransID
+    def tID: TransformId
     protected def duplicate(n: Named): Annotation
     def serialize: String = this.toString
     def update(tos: Seq[Named]): Seq[Annotation] = {
@@ -171,8 +165,8 @@ object Annotations {
    * Container of all annotations for a Firrtl compiler.
    */
   case class AnnotationMap(annotations: Seq[Annotation]) {
-    type NamedMap = Map[Named, Map[TransID, Annotation]]
-    type IDMap = Map[TransID, Map[Named, Annotation]]
+    type NamedMap = Map[Named, Map[TransformId, Annotation]]
+    type IDMap = Map[TransformId, Map[Named, Annotation]]
 
     val (namedMap: NamedMap, idMap:IDMap) =
       //annotations.foldLeft(Tuple2[NamedMap, IDMap](Map.empty, Map.empty)){
@@ -186,8 +180,8 @@ object Annotations {
           Tuple2(pNMap, ptIDMap)
         }
       }
-    def get(id: TransID): Option[Map[Named, Annotation]] = idMap.get(id)
-    def get(named: Named): Option[Map[TransID, Annotation]] = namedMap.get(named)
+    def get(id: TransformId): Option[Map[Named, Annotation]] = idMap.get(id)
+    def get(named: Named): Option[Map[TransformId, Annotation]] = namedMap.get(named)
   }
 }
 
