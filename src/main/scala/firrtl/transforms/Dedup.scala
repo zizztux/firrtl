@@ -42,7 +42,7 @@ object DedupModules extends Transform {
         case Module(info, n, ps, b) =>
           if(!hasInstance(b)) moduleOrder += m.name
           m
-        case ExtModule(info, n, ps) =>
+        case e: ExtModule =>
           moduleOrder += m.name
           m
         case _ => m
@@ -67,7 +67,7 @@ object DedupModules extends Transform {
         val string = mx match {
           case Module(i, n, ps, b) =>
             ps.map(_.serialize).foldLeft(""){(str, p) => str + p} + b.serialize
-          case ExtModule(i, n, ps) =>
+          case ExtModule(i, n, ps, dn, p) =>
             ps.map(_.serialize).foldLeft(""){(str, p) => str + p}
         }
         dedupModules.get(string) match {
