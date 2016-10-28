@@ -52,17 +52,32 @@ object DedupModules extends Transform {
       // Old module name -> dup module name
       val dedupMap = mutable.HashMap[String, String]()
       def onModule(m: DefModule): Option[DefModule] = {
-        def fixInstance(s: Statement): Statement = s map fixInstance match {
-          case DefInstance(i, n, m) => DefInstance(i, n, dedupMap.getOrElse(m, m))
-          case WDefInstance(i, n, m, t) => WDefInstance(i, n, dedupMap.getOrElse(m, m), t)
+        def fixPorts(p: Port): Port = p copy (info = NoInfo)
+        def fixStatements(s: Statement): Statement = s map fixStatements match {
+          case DefInstance(_, n, m) => DefInstance(NoInfo, n, dedupMap.getOrElse(m, m))
+          case WDefInstance(_, n, m, t) => WDefInstance(NoInfo, n, dedupMap.getOrElse(m, m), t)
+          // TODO: unfortunately [copy] doesn't work for HasInfo
+          // better way to handle this?
+          // case x: HasInfo => x copy (info = NoInfo)
+          case x: DefWire => x copy (info = NoInfo)
+          case x: DefNode => x copy (info = NoInfo)
+          case x: DefRegister => x copy (info = NoInfo)
+          case x: DefMemory => x copy (info = NoInfo)
+          case x: Conditionally => x copy (info = NoInfo)
+          case x: PartialConnect => x copy (info = NoInfo)
+          case x: Connect => x copy (info = NoInfo)
+          case x: IsInvalid => x copy (info = NoInfo)
+          case x: Attach => x copy (info = NoInfo)
+          case x: Stop => x copy (info = NoInfo)
+          case x: Print => x copy (info = NoInfo)
           case x => x
         }
 
-        val mx = m map fixInstance
+        val mx = m map fixPorts map fixStatements
         val string = mx match {
-          case Module(i, n, ps, b) =>
+          case Module(_, n, ps, b) =>
             ps.map(_.serialize).foldLeft(""){(str, p) => str + p} + b.serialize
-          case ExtModule(i, n, ps, dn, p) =>
+          case ExtModule(_, n, ps, dn, p) =>
             ps.map(_.serialize).foldLeft(""){(str, p) => str + p}
         }
         dedupModules.get(string) match {
