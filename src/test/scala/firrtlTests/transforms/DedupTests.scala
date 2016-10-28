@@ -13,11 +13,10 @@ import firrtl.passes.PassExceptions
 import firrtl.Annotations.{
    Named,
    CircuitName,
-   TransID,
    Annotation,
    AnnotationMap
 }
-import firrtl.transforms.{DedupModules, DedupAnnotation}
+import firrtl.transforms.{DedupModules}
 
 
 /**

@@ -4,7 +4,7 @@ package firrtl
 
 import firrtl.Annotations._
 import firrtl.Parser._
-import firrtl.passes.memlib.ReplSeqMemAnnotation
+//import firrtl.passes.memlib.ReplSeqMemAnnotation
 import logger.LogLevel
 import scopt.OptionParser
 
@@ -242,48 +242,48 @@ trait HasFirrtlOptions {
       s"specifies the source info handling, default is ${firrtlOptions.infoMode}"
     }
 
-  parser.opt[Seq[String]]("inline")
-    .abbr("fil")
-    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
-    .foreach { x =>
-      val newAnnotations = x.map { value =>
-        value.split('.') match {
-          case Array(circuit) =>
-            passes.InlineAnnotation(CircuitName(circuit), TransID(0))
-          case Array(circuit, module) =>
-            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
-          case Array(circuit, module, inst) =>
-            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))), TransID(0))
-        }
-      }
-      firrtlOptions = firrtlOptions.copy(annotations = firrtlOptions.annotations ++ newAnnotations)
-    }
-    .text {
-      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
-    }
+  //parser.opt[Seq[String]]("inline")
+  //  .abbr("fil")
+  //  .valueName ("<circuit>[.<module>[.<instance>]][,..],")
+  //  .foreach { x =>
+  //    val newAnnotations = x.map { value =>
+  //      value.split('.') match {
+  //        case Array(circuit) =>
+  //          passes.InlineAnnotation(CircuitName(circuit), TransID(0))
+  //        case Array(circuit, module) =>
+  //          passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
+  //        case Array(circuit, module, inst) =>
+  //          passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))), TransID(0))
+  //      }
+  //    }
+  //    firrtlOptions = firrtlOptions.copy(annotations = firrtlOptions.annotations ++ newAnnotations)
+  //  }
+  //  .text {
+  //    """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
+  //  }
 
-  parser.opt[String]("infer-rw")
-    .abbr("firw")
-    .valueName ("<circuit>")
-    .foreach { x =>
-      firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ passes.InferReadWriteAnnotation(x, TransID(-1))
-      )
-    }.text {
-      "Enable readwrite port inference for the target circuit"
-    }
+  //parser.opt[String]("infer-rw")
+  //  .abbr("firw")
+  //  .valueName ("<circuit>")
+  //  .foreach { x =>
+  //    firrtlOptions = firrtlOptions.copy(
+  //      annotations = firrtlOptions.annotations :+ passes.InferReadWriteAnnotation(x, TransID(-1))
+  //    )
+  //  }.text {
+  //    "Enable readwrite port inference for the target circuit"
+  //  }
 
-  parser.opt[String]("repl-seq-mem")
-    .abbr("frsq")
-    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
-    .foreach { x =>
-      firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x, TransID(-2))
-      )
-    }
-    .text {
-      "Replace sequential memories with blackboxes + configuration file"
-    }
+  //parser.opt[String]("repl-seq-mem")
+  //  .abbr("frsq")
+  //  .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
+  //  .foreach { x =>
+  //    firrtlOptions = firrtlOptions.copy(
+  //      annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x, TransID(-2))
+  //    )
+  //  }
+  //  .text {
+  //    "Replace sequential memories with blackboxes + configuration file"
+  //  }
 
   parser.note("")
 

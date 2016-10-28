@@ -54,9 +54,9 @@ class InoutVerilog extends FirrtlFlatSpec {
          |    input an: Analog<3>
          |    inst a of A
          |    inst b of B
-         |    attach an to (a.an, b.an)
+         |    attach an to (a.ano, b.an)
          |  module A: 
-         |    input an: Analog<3>
+         |    input ano: Analog<3>
          |  module B:
          |    input an: Analog<3> """.stripMargin
      val check = 
@@ -71,7 +71,7 @@ class InoutVerilog extends FirrtlFlatSpec {
         |  );
         |endmodule
         |module A(
-        |  inout  [2:0] an
+        |  inout  [2:0] ano
         |);
         |endmodule
         |module B(

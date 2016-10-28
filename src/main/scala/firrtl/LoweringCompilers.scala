@@ -188,11 +188,11 @@ class LowFirrtlCompiler extends Compiler {
   def transforms(writer: Writer): Seq[Transform] = Seq(
     new Chisel3ToHighFirrtl,
     new IRToWorkingIR,
-    new passes.InlineInstances(TransID(0)),
+    //new passes.InlineInstances(TransID(0)),
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
-    new passes.InferReadWrite(TransID(-1)),
-    new passes.memlib.ReplSeqMem(TransID(-2)),
+    //new passes.InferReadWrite(TransID(-1)),
+    //new passes.memlib.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
     new EmitFirrtl(writer)
   )
@@ -206,10 +206,10 @@ class VerilogCompiler extends Compiler {
     new ResolveAndCheck,
     firrtl.transforms.DedupModules,
     new HighFirrtlToMiddleFirrtl,
-    new passes.InferReadWrite(TransID(-1)),
-    new passes.memlib.ReplSeqMem(TransID(-2)),
+    //new passes.InferReadWrite(TransID(-1)),
+    //new passes.memlib.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
-    new passes.InlineInstances(TransID(0)),
+    //new passes.InlineInstances(TransID(0)),
     new EmitVerilogFromLowFirrtl(writer)
   )
 }

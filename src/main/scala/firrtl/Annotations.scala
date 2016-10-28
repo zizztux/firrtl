@@ -4,6 +4,7 @@ import firrtl.ir._
 
 import scala.collection.mutable
 import java.io.Writer
+import net.jcazevedo.moultingyaml._
 
 
 /**
@@ -39,7 +40,24 @@ import java.io.Writer
  * Loose     |   ok     |    ok    |     ok     |    ok     |
  * ----------|----------|----------|------------|-----------|
  */
+
+import Annotations._
+object AnnotationYAMLProtocol extends DefaultYamlProtocol {
+  // bottom depends on top
+  implicit val _annotation = yamlFormat3(Annotation)
+}
+
+
+
 object Annotations {
+  case class Annotation(transformClass: String, targetString: String, value: String) {
+    def target: Named = targetString.split('.').toSeq match {
+      case Seq(c) => CircuitName(c)
+      case Seq(c, m) => ModuleName(m, CircuitName(c))
+      case Nil => error("BAD")
+      case s => ComponentName(s.drop(2).mkString("."), ModuleName(s(1), CircuitName(s(0))))
+    }
+  }
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
   def validModuleName(s: String): Boolean = s match {
@@ -113,146 +131,147 @@ object Annotations {
     if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
     def expr: Expression = toExp(name)
   }
-
-  /**
-   * Transform ID (TransID) associates an annotation with an instantiated
-   * Firrtl compiler transform
-   */
-  case class TransID(id: Int)
-
-  /**
-   * Permissibility defines the range of acceptable changes to the annotated component.
-   */
-  trait Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit
-  }
-  /**
-   * Annotated component cannot be renamed, expanded, or removed.
-   */
-  trait Strict extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 =>
-        throw new AnnotationException(s"Cannot remove the strict annotation ${which.serialize} on ${from.name}")
-      case 1 if from != tos.head =>
-        throw new AnnotationException(s"Cannot rename the strict annotation ${which.serialize} on ${from.name} -> ${tos.head.name}")
-      case _ =>
-        throw new AnnotationException(s"Cannot expand a strict annotation on ${from.name} -> ${tos.map(_.name)}")
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, but cannot be expanded or removed.
-   */
-  trait Rigid extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 => throw new AnnotationException(s"Cannot remove the rigid annotation ${which.serialize} on ${from.name}")
-      case 1 =>
-      case _ => throw new AnnotationException(s"Cannot expand a rigid annotation on ${from.name} -> ${tos.map(_.name)}")
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, and expanded, but not removed.
-   */
-  trait Firm extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 => throw new AnnotationException(s"Cannot remove the firm annotation ${which.serialize} on ${from.name}")
-      case _ =>
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, and expanded, and removed.
-   */
-  trait Loose extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
-  }
-
-  /**
-   * Tenacity defines how the annotation propagates when changes to the
-   * annotated component occur.
-   */
-  trait Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation]
-  }
-
-  /**
-   * Annotation propagates to all new components
-   */
-  trait Sticky extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
-  }
-
-  /**
-   * Annotation propagates to the first of all new components
-   */
-  trait Insistent extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.headOption match {
-      case None => Seq.empty
-      case Some(n) => Seq(dup(n))
-    }
-  }
-
-  /**
-   * Annotation propagates only if there is one new component.
-   */
-  trait Fickle extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
-      case 1 => Seq(dup(tos.head))
-      case _ => Seq.empty
-    }
-  }
-
-  /**
-   * Annotation propagates only the new component shares the same name.
-   */
-  trait Unstable extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
-      case 1 if tos.head == from => Seq(dup(tos.head))
-      case _ => Seq.empty
-    }
-  }
-
-  /**
-   * Annotation associates with a given named circuit component (target) and a
-   * given transformation (tID).  Also defined are the legal ranges of changes
-   * to the associated component (Permissibility) and how the annotation
-   * propagates under such changes (Tenacity). Subclasses must implement the
-   * duplicate function to create the same annotation associated with a new
-   * component.
-   */
-  trait Annotation extends Permissibility with Tenacity {
-    def target: Named
-    def tID: TransID
-    protected def duplicate(n: Named): Annotation
-    def serialize: String = this.toString
-    def update(tos: Seq[Named]): Seq[Annotation] = {
-      check(target, tos, this)
-      propagate(target, tos, duplicate)
-    }
-  }
-
-  /**
-   * Container of all annotations for a Firrtl compiler.
-   */
-  case class AnnotationMap(annotations: Seq[Annotation]) {
-    type NamedMap = Map[Named, Map[TransID, Annotation]]
-    type IDMap = Map[TransID, Map[Named, Annotation]]
-
-    val (namedMap: NamedMap, idMap:IDMap) =
-      //annotations.foldLeft(Tuple2[NamedMap, IDMap](Map.empty, Map.empty)){
-      annotations.foldLeft((Map.empty: NamedMap, Map.empty: IDMap)){
-        (partialMaps: (NamedMap, IDMap), annotation: Annotation) => {
-          val tIDToAnn = partialMaps._1.getOrElse(annotation.target, Map.empty)
-          val pNMap = partialMaps._1 + (annotation.target -> (tIDToAnn + (annotation.tID -> annotation)))
-
-          val nToAnn = partialMaps._2.getOrElse(annotation.tID, Map.empty)
-          val ptIDMap = partialMaps._2 + (annotation.tID -> (nToAnn + (annotation.target -> annotation)))
-          Tuple2(pNMap, ptIDMap)
-        }
-      }
-    def get(id: TransID): Option[Map[Named, Annotation]] = idMap.get(id)
-    def get(named: Named): Option[Map[TransID, Annotation]] = namedMap.get(named)
-  }
+  case class AnnotationMap(annotations: Seq[Annotation])
+//
+//  /**
+//   * Transform ID (TransID) associates an annotation with an instantiated
+//   * Firrtl compiler transform
+//   */
+//  //case class TransID(id: Int)
+//
+//  /**
+//   * Permissibility defines the range of acceptable changes to the annotated component.
+//   */
+//  trait Permissibility {
+//    def check(from: Named, tos: Seq[Named], which: Annotation): Unit
+//  }
+//  /**
+//   * Annotated component cannot be renamed, expanded, or removed.
+//   */
+//  trait Strict extends Permissibility {
+//    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
+//      case 0 =>
+//        throw new AnnotationException(s"Cannot remove the strict annotation ${which.serialize} on ${from.name}")
+//      case 1 if from != tos.head =>
+//        throw new AnnotationException(s"Cannot rename the strict annotation ${which.serialize} on ${from.name} -> ${tos.head.name}")
+//      case _ =>
+//        throw new AnnotationException(s"Cannot expand a strict annotation on ${from.name} -> ${tos.map(_.name)}")
+//    }
+//  }
+//
+//  /**
+//   * Annotated component can be renamed, but cannot be expanded or removed.
+//   */
+//  trait Rigid extends Permissibility {
+//    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
+//      case 0 => throw new AnnotationException(s"Cannot remove the rigid annotation ${which.serialize} on ${from.name}")
+//      case 1 =>
+//      case _ => throw new AnnotationException(s"Cannot expand a rigid annotation on ${from.name} -> ${tos.map(_.name)}")
+//    }
+//  }
+//
+//  /**
+//   * Annotated component can be renamed, and expanded, but not removed.
+//   */
+//  trait Firm extends Permissibility {
+//    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
+//      case 0 => throw new AnnotationException(s"Cannot remove the firm annotation ${which.serialize} on ${from.name}")
+//      case _ =>
+//    }
+//  }
+//
+//  /**
+//   * Annotated component can be renamed, and expanded, and removed.
+//   */
+//  trait Loose extends Permissibility {
+//    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
+//  }
+//
+//  /**
+//   * Tenacity defines how the annotation propagates when changes to the
+//   * annotated component occur.
+//   */
+//  trait Tenacity {
+//    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation]
+//  }
+//
+//  /**
+//   * Annotation propagates to all new components
+//   */
+//  trait Sticky extends Tenacity {
+//    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
+//  }
+//
+//  /**
+//   * Annotation propagates to the first of all new components
+//   */
+//  trait Insistent extends Tenacity {
+//    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.headOption match {
+//      case None => Seq.empty
+//      case Some(n) => Seq(dup(n))
+//    }
+//  }
+//
+//  /**
+//   * Annotation propagates only if there is one new component.
+//   */
+//  trait Fickle extends Tenacity {
+//    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
+//      case 1 => Seq(dup(tos.head))
+//      case _ => Seq.empty
+//    }
+//  }
+//
+//  /**
+//   * Annotation propagates only the new component shares the same name.
+//   */
+//  trait Unstable extends Tenacity {
+//    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
+//      case 1 if tos.head == from => Seq(dup(tos.head))
+//      case _ => Seq.empty
+//    }
+//  }
+//
+//  /**
+//   * Annotation associates with a given named circuit component (target) and a
+//   * given transformation (tID).  Also defined are the legal ranges of changes
+//   * to the associated component (Permissibility) and how the annotation
+//   * propagates under such changes (Tenacity). Subclasses must implement the
+//   * duplicate function to create the same annotation associated with a new
+//   * component.
+//   */
+//  trait Annotation extends Permissibility with Tenacity {
+//    def target: Named
+//    def tID: TransID
+//    protected def duplicate(n: Named): Annotation
+//    def serialize: String = this.toString
+//    def update(tos: Seq[Named]): Seq[Annotation] = {
+//      check(target, tos, this)
+//      propagate(target, tos, duplicate)
+//    }
+//  }
+//
+//  /**
+//   * Container of all annotations for a Firrtl compiler.
+//   */
+//  case class AnnotationMap(annotations: Seq[Annotation]) {
+//    type NamedMap = Map[Named, Map[TransID, Annotation]]
+//    type IDMap = Map[TransID, Map[Named, Annotation]]
+//
+//    val (namedMap: NamedMap, idMap:IDMap) =
+//      //annotations.foldLeft(Tuple2[NamedMap, IDMap](Map.empty, Map.empty)){
+//      annotations.foldLeft((Map.empty: NamedMap, Map.empty: IDMap)){
+//        (partialMaps: (NamedMap, IDMap), annotation: Annotation) => {
+//          val tIDToAnn = partialMaps._1.getOrElse(annotation.target, Map.empty)
+//          val pNMap = partialMaps._1 + (annotation.target -> (tIDToAnn + (annotation.tID -> annotation)))
+//
+//          val nToAnn = partialMaps._2.getOrElse(annotation.tID, Map.empty)
+//          val ptIDMap = partialMaps._2 + (annotation.tID -> (nToAnn + (annotation.target -> annotation)))
+//          Tuple2(pNMap, ptIDMap)
+//        }
+//      }
+//    def get(id: TransID): Option[Map[Named, Annotation]] = idMap.get(id)
+//    def get(named: Named): Option[Map[TransID, Annotation]] = namedMap.get(named)
+//  }
 }
 

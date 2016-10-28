@@ -69,20 +69,21 @@ trait Compiler {
   def compile(circuit: Circuit, annotationMap: AnnotationMap, writer: Writer): CompilerResult =
     (transforms(writer) foldLeft CompilerResult(circuit, annotationMap)){ (in, xform) =>
       val result = xform.execute(in.circuit, in.annotationMap)
-      val remappedAnnotations: Seq[Annotation] = result.renames match {
-        case Some(RenameMap(rmap)) =>
-          // For each key in the rename map (rmap), obtain the
-          // corresponding annotations (in.annotationMap.get(from)). If any
-          // annotations exist, for each annotation, create a sequence of
-          // annotations with the names in rmap's value.
-          for {
-            (oldName, newNames) <- rmap.toSeq
-            tID2OldAnnos <- in.annotationMap.get(oldName).toSeq
-            oldAnno <- tID2OldAnnos.values
-            newAnno <- oldAnno.update(newNames)
-          } yield newAnno
-        case _ => in.annotationMap.annotations
-      }
+      val remappedAnnotations: Seq[Annotation] = Nil
+      //result.renames match {
+      //  case Some(RenameMap(rmap)) =>
+      //    // For each key in the rename map (rmap), obtain the
+      //    // corresponding annotations (in.annotationMap.get(from)). If any
+      //    // annotations exist, for each annotation, create a sequence of
+      //    // annotations with the names in rmap's value.
+      //    for {
+      //      (oldName, newNames) <- rmap.toSeq
+      //      tID2OldAnnos <- in.annotationMap.get(oldName).toSeq
+      //      oldAnno <- tID2OldAnnos.values
+      //      newAnno <- oldAnno.update(newNames)
+      //    } yield newAnno
+      //  case _ => in.annotationMap.annotations
+      //}
       val resultAnnotations: Seq[Annotation] = result.annotation match {
         case None => Nil
         case Some(p) => p.annotations
