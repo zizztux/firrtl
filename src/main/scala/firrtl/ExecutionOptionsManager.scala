@@ -140,7 +140,8 @@ case class FirrtlExecutionOptions(
     infoModeName:           String = "append",
     inferRW:                Seq[String] = Seq.empty,
     firrtlSource:           Option[String] = None,
-    annotations:            List[Annotation] = List.empty)
+    annotations:            List[Annotation] = List.empty,
+    annotationFileNameOverride: String = "")
   extends ComposableOptions {
 
 
@@ -190,6 +191,15 @@ case class FirrtlExecutionOptions(
   def getOutputFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)
   }
+  /**
+    * build the annotation file name, taking overriding parameters
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return
+    */
+  def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
+    optionsManager.getBuildFileName("anno", annotationFileNameOverride)
+  }
 }
 
 trait HasFirrtlOptions {
@@ -204,7 +214,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(inputFileNameOverride = x)
     }.text {
-      "use this to override the top name default, default is empty"
+      "use this to override the default input file name , default is empty"
     }
 
   parser.opt[String]("output-file")
@@ -213,8 +223,17 @@ trait HasFirrtlOptions {
     foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
     }.text {
-      "use this to override the default name, default is empty"
-    }
+    "use this to override the default output file name, default is empty"
+  }
+
+  parser.opt[String]("annotation-file")
+    .abbr("a")
+    .valueName ("<output>").
+    foreach { x =>
+      firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
+    }.text {
+    "use this to override the default annotation file name, default is empty"
+  }
 
   parser.opt[String]("compiler")
     .abbr("X")
