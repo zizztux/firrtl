@@ -12,16 +12,13 @@ import scala.collection.mutable
 // Tags an annotation to be consumed by this pass
 case class DedupAnnotation(target: Named) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = this.copy(target=n)
-  def tID = DedupModulesId
+  def transform = classOf[DedupModules]
 }
-
-case object DedupModulesId extends TransformId
 
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
 class DedupModules extends Transform {
-   def name = this.getClass.getSimpleName
    def inputForm = HighForm
    def outputForm = HighForm
    def execute(state: CircuitState): CircuitState = state.copy(circuit = run(state.circuit))
