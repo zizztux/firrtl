@@ -15,8 +15,8 @@ import firrtl.{
    Compiler,
    ChirrtlForm,
    LowForm,
-   TransformId,
-   VerilogCompiler
+   VerilogCompiler,
+   Transform
 }
 import firrtl.Annotations.{
    Named,
@@ -65,7 +65,6 @@ trait AnnotationSpec extends LowTransformSpec {
  */
 class AnnotationTests extends AnnotationSpec with Matchers {
   def getAMap (a: Annotation): AnnotationMap = new AnnotationMap(Seq(a))
-  val tID = new TransformId {} // anonymous
   val input =
     """circuit Top :
        |  module Top :
@@ -78,11 +77,12 @@ class AnnotationTests extends AnnotationSpec with Matchers {
   val cName = ComponentName("c", mName)
 
   "Loose and Sticky annotation on a node" should "pass through" in {
-    case class TestAnnotation(target: Named, tID: TransformId) extends Annotation with Loose with Sticky {
+    case class TestAnnotation(target: Named) extends Annotation with Loose with Sticky {
       def duplicate(to: Named) = this.copy(target=to)
+      def transform = classOf[Transform]
     }
     val w = new StringWriter()
-    val ta = TestAnnotation(cName, tID)
+    val ta = TestAnnotation(cName)
     execute(w, getAMap(ta), input, ta)
   }
 }

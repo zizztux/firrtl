@@ -144,7 +144,7 @@ object Annotations {
 
   /**
    * Annotation associates with a given named circuit component (target) and a
-   * given transformation (tID).  Also defined are the legal ranges of changes
+   * given transformation (transform).  Also defined are the legal ranges of changes
    * to the associated component (Permissibility) and how the annotation
    * propagates under such changes (Tenacity). Subclasses must implement the
    * duplicate function to create the same annotation associated with a new
@@ -152,7 +152,7 @@ object Annotations {
    */
   trait Annotation extends Permissibility with Tenacity {
     def target: Named
-    def tID: TransformId
+    def transform: Class[_ <: Transform]
     protected def duplicate(n: Named): Annotation
     def serialize: String = this.toString
     def update(tos: Seq[Named]): Seq[Annotation] = {
@@ -165,23 +165,23 @@ object Annotations {
    * Container of all annotations for a Firrtl compiler.
    */
   case class AnnotationMap(annotations: Seq[Annotation]) {
-    type NamedMap = Map[Named, Map[TransformId, Annotation]]
-    type IDMap = Map[TransformId, Map[Named, Annotation]]
+    type NamedMap = Map[Named, Map[Class[_], Annotation]]
+    type IDMap = Map[Class[_], Map[Named, Annotation]]
 
     val (namedMap: NamedMap, idMap:IDMap) =
       //annotations.foldLeft(Tuple2[NamedMap, IDMap](Map.empty, Map.empty)){
       annotations.foldLeft((Map.empty: NamedMap, Map.empty: IDMap)){
         (partialMaps: (NamedMap, IDMap), annotation: Annotation) => {
-          val tIDToAnn = partialMaps._1.getOrElse(annotation.target, Map.empty)
-          val pNMap = partialMaps._1 + (annotation.target -> (tIDToAnn + (annotation.tID -> annotation)))
+          val transformToAnn = partialMaps._1.getOrElse(annotation.target, Map.empty)
+          val pNMap = partialMaps._1 + (annotation.target -> (transformToAnn + (annotation.transform -> annotation)))
 
-          val nToAnn = partialMaps._2.getOrElse(annotation.tID, Map.empty)
-          val ptIDMap = partialMaps._2 + (annotation.tID -> (nToAnn + (annotation.target -> annotation)))
-          Tuple2(pNMap, ptIDMap)
+          val nToAnn = partialMaps._2.getOrElse(annotation.transform, Map.empty)
+          val ptransformMap = partialMaps._2 + (annotation.transform -> (nToAnn + (annotation.target -> annotation)))
+          Tuple2(pNMap, ptransformMap)
         }
       }
-    def get(id: TransformId): Option[Map[Named, Annotation]] = idMap.get(id)
-    def get(named: Named): Option[Map[TransformId, Annotation]] = namedMap.get(named)
+    def get(id: Class[_]): Option[Map[Named, Annotation]] = idMap.get(id)
+    def get(named: Named): Option[Map[Class[_], Annotation]] = namedMap.get(named)
   }
 }
 

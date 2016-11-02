@@ -17,14 +17,13 @@ import firrtl.Annotations.{
    Annotation,
    AnnotationMap
 }
-import firrtl.passes.{InlineInstances, InlineAnnotation, InlineInstancesId}
+import firrtl.passes.{InlineInstances, InlineAnnotation}
 
 
 /**
  * Tests inline instances transformation
  */
 class InlineInstancesTests extends LowTransformSpec {
-   val tID = InlineInstancesId
    def transform = new InlineInstances
    "The module Inline" should "be inlined" in {
       val input =

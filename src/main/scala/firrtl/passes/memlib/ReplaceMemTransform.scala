@@ -89,14 +89,11 @@ Optional Arguments:
   )
   val target = CircuitName(passCircuit)
   def duplicate(n: Named) = this copy (t = t.replace(s"-c:$passCircuit", s"-c:${n.name}"))
-  def tID = ReplSeqMemId 
+  def transform = classOf[ReplSeqMem]
 }
-
-case object ReplSeqMemId extends TransformId
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
 class ReplSeqMem extends Transform with SimpleRun {
-  override def transformId = ReplSeqMemId
   def inputForm = MidForm
   def outputForm = MidForm
 

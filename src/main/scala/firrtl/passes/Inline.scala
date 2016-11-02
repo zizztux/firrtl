@@ -11,20 +11,17 @@ import scala.collection.mutable
 // Tags an annotation to be consumed by this pass
 case class InlineAnnotation(target: Named) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = this.copy(target=n)
-  def tID = InlineInstancesId
+  def transform = classOf[InlineInstances]
 }
-
-case object InlineInstancesId extends TransformId
 
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
 class InlineInstances extends Transform {
-   override def transformId = InlineInstancesId
    def inputForm = LowForm
    def outputForm = LowForm
    val inlineDelim = "$"
-   def name = "Inline Instances"
+   override def name = "Inline Instances"
 
    private def collectAnns(anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {

@@ -60,7 +60,6 @@ class CustomResolveAndCheck(form: CircuitForm) extends PassBasedTransform {
   def inputForm = form
   def outputForm = form
   def passSeq = wrappedTransform.passSeq
-  override def transformId = wrappedTransform.transformId
 }
 
 trait LowTransformSpec extends SimpleTransformSpec {

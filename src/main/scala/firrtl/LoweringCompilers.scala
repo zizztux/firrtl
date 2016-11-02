@@ -29,13 +29,6 @@ package firrtl
 
 sealed abstract class CoreTransform extends PassBasedTransform
 
-final case object ChirrtlToHighFirrtlId extends TransformId
-final case object IRToWorkingIRId extends TransformId
-final case object ResolveAndCheckId extends TransformId
-final case object HighFirrtlToMiddleFirrtlId extends TransformId
-final case object MiddleFirrtlToLowFirrtlId extends TransformId
-final case object LowFirrtlOptimizationId extends TransformId
-
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
   * circuit has only IR nodes, not WIR.
   * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
@@ -43,7 +36,6 @@ final case object LowFirrtlOptimizationId extends TransformId
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
-  override def transformId = ChirrtlToHighFirrtlId
   def passSeq = Seq(
     passes.CheckChirrtl,
     passes.CInferTypes,
@@ -57,7 +49,6 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  override def transformId = IRToWorkingIRId
   def passSeq = Seq(passes.ToWorkingIR)
 }
 
@@ -67,7 +58,6 @@ class IRToWorkingIR extends CoreTransform {
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  override def transformId = ResolveAndCheckId
   def passSeq = Seq(
     passes.CheckHighForm,
     passes.ResolveKinds,
@@ -90,7 +80,6 @@ class ResolveAndCheck extends CoreTransform {
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
-  override def transformId = HighFirrtlToMiddleFirrtlId
   def passSeq = Seq(
     passes.PullMuxes,
     passes.ReplaceAccesses,
@@ -113,7 +102,6 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
-  override def transformId = MiddleFirrtlToLowFirrtlId
   def passSeq = Seq(
     passes.LowerTypes,
     passes.ResolveKinds,
@@ -130,7 +118,6 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
 class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  override def transformId = LowFirrtlOptimizationId
   def passSeq = Seq(
     passes.RemoveValidIf,
     passes.ConstProp,

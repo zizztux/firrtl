@@ -58,29 +58,15 @@ final case object HighForm extends CircuitForm(2)
 final case object MidForm extends CircuitForm(1)
 final case object LowForm extends CircuitForm(0)
 
-/** Unique Id for transformations
-  *
-  * Useful for matching on a given transformation or indicating that an annotation should be
-  * consumed by a specific transformation
-  * @todo Replace with TypeTag?
-  */
-trait TransformId
-/** Default TransformId for Transforms that don't need an Id
-  * overriding equals to be false means no match or equality check will ever succeed
-  */
-private case object NoTransformId extends TransformId {
-  override def equals(any: Any): Boolean = false
-}
-
 abstract class Transform {
+  def name: String = this.getClass.getSimpleName
   def inputForm: CircuitForm
   def outputForm: CircuitForm
-  def transformId: TransformId = NoTransformId
   def execute(state: CircuitState): CircuitState
   final def getMyAnnotations(state: CircuitState): Option[Map[Named, Annotation]] =
     for {
       annotations <- state.annotations
-      myAnnotations <- annotations get transformId
+      myAnnotations <- annotations.get(this.getClass)
     } yield myAnnotations
 }
 
@@ -107,7 +93,7 @@ trait PassBased extends SimpleRun {
 abstract class PassBasedTransform extends Transform with PassBased {
   def execute(state: CircuitState): CircuitState = {
     require(state.form <= inputForm,
-      s"[$transformId]: Input form must be lower or equal to $inputForm. Got ${state.form}")
+      s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
     CircuitState(runPasses(state.circuit), outputForm)
   }
 }
@@ -191,8 +177,8 @@ trait Compiler {
           // annotations with the names in rmap's value.
           for {
             (oldName, newNames) <- rmap.toSeq
-            tID2OldAnnos <- inAnnotationMap.get(oldName).toSeq
-            oldAnno <- tID2OldAnnos.values
+            transform2OldAnnos <- inAnnotationMap.get(oldName).toSeq
+            oldAnno <- transform2OldAnnos.values
             newAnno <- oldAnno.update(newNames)
           } yield newAnno
         case _ => inAnnotationMap.annotations

@@ -41,7 +41,7 @@ import Annotations._
 case class InferReadWriteAnnotation(t: String) extends Annotation with Loose with Unstable {
   val target = CircuitName(t)
   def duplicate(n: Named) = this.copy(t=n.name)
-  def tID = InferReadWriteId 
+  def transform = classOf[InferReadWrite]
 }
 
 // This pass examine the enable signals of the read & write ports of memories
@@ -166,12 +166,9 @@ object InferReadWritePass extends Pass {
   def run(c: Circuit) = c copy (modules = c.modules map inferReadWrite)
 }
 
-case object InferReadWriteId extends TransformId
-
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
 class InferReadWrite extends Transform with PassBased {
-  override def transformId = InferReadWriteId 
   def inputForm = MidForm
   def outputForm = MidForm
   def passSeq = Seq(
@@ -183,8 +180,7 @@ class InferReadWrite extends Transform with PassBased {
   )
   def execute(state: CircuitState): CircuitState = {
     val result = for {
-      annotations <- state.annotations
-      myAnnotations <- annotations get transformId
+      myAnnotations <- getMyAnnotations(state)
       InferReadWriteAnnotation(_) <- myAnnotations get CircuitName(state.circuit.main)
       resCircuit = runPasses(state.circuit)
     } yield state.copy(circuit = resCircuit)
