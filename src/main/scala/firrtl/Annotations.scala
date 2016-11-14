@@ -47,8 +47,6 @@ object AnnotationYAMLProtocol extends DefaultYamlProtocol {
   implicit val _annotation = yamlFormat3(Annotation)
 }
 
-
-
 object Annotations {
   case class Annotation(transformClass: String, targetString: String, value: String) {
     def target: Named = targetString.split('.').toSeq match {
