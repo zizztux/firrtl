@@ -8,6 +8,7 @@ import org.scalatest.prop._
 class GCDExecutionTest extends ExecutionTest("GCDTester", "/integration")
 class RightShiftExecutionTest extends ExecutionTest("RightShiftTester", "/integration")
 class MemExecutionTest extends ExecutionTest("MemTester", "/integration")
+class VecOverflowTest extends ExecutionTest("VecOverflowTester", "/regress")
 
 class RocketCompilationTest extends CompilationTest("rocket", "/regress")
 class RocketFirrtlCompilationTest extends CompilationTest("rocket-firrtl", "/regress")
