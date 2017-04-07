@@ -125,12 +125,28 @@ class ZeroWidthVerilog extends FirrtlFlatSpec {
   "Circuit" should "accept zero width wires" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Top : 
-         |  module Top : 
+      """circuit Top :
+         |  module Top :
          |    input y: UInt<0>
          |    output x: UInt<3>
          |    x <= y""".stripMargin
-    val check = 
+    val check =
+      """module Top(
+        |  output  [2:0] x
+        |);
+        |  assign x = 3'h0;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "Zero width literals" should " be supported" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Top :
+         |  module Top :
+         |    output x: UInt<3>
+         |    x <= UInt<0>(0)""".stripMargin
+    val check =
       """module Top(
         |  output  [2:0] x
         |);

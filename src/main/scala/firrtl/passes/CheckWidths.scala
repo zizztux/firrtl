@@ -59,7 +59,7 @@ object CheckWidths extends Pass {
     def check_width_e(info: Info, mname: String)(e: Expression): Expression = {
       e match {
         case e: UIntLiteral => e.width match {
-          case w: IntWidth if math.max(1, e.value.bitLength) > w.width =>
+          case w: IntWidth if e.value.bitLength > w.width =>
             errors append new WidthTooSmall(info, mname, e.value)
           case _ =>
         }
