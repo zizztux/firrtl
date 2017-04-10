@@ -28,30 +28,37 @@ object ZeroWidth extends Pass {
     case None => e.tpe match {
       case UIntType(x) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
       case SIntType(x) => SIntLiteral(ZERO, IntWidth(BigInt(1)))
-      case _ => throwInternalError
+      case t => throw new Exception(s"Unexpected type $t!")
+      //case _ => throwInternalError
     }
     case Some(t) => 
       def replaceType(x: Type): Type = t
       (e map replaceType) map onExp
   }
-  private def onStmt(s: Statement): Statement = s match {
-    case (_: DefWire| _: DefRegister| _: DefMemory) =>
-      var removed = false
-      def applyRemoveZero(t: Type): Type = removeZero(t) match {
-        case None => removed = true; t
-        case Some(tx) => tx
+  private def onStmt(s: Statement): Statement = {
+    s match {
+      case _: Block | _: Conditionally =>
+      case other => println(s"Running onStmt on ${other.serialize}")
+    }
+    s match {
+      case (_: DefWire| _: DefRegister| _: DefMemory) =>
+        var removed = false
+        def applyRemoveZero(t: Type): Type = removeZero(t) match {
+          case None => removed = true; t
+          case Some(tx) => tx
+        }
+        val sxx = (s map onExp) map applyRemoveZero
+        if(removed) EmptyStmt else sxx
+      case Connect(info, loc, exp) => removeZero(loc.tpe) match {
+        case None => EmptyStmt
+        case Some(t) => Connect(info, loc, onExp(exp))
       }
-      val sxx = (s map onExp) map applyRemoveZero
-      if(removed) EmptyStmt else sxx
-    case Connect(info, loc, exp) => removeZero(loc.tpe) match {
-      case None => EmptyStmt
-      case Some(t) => Connect(info, loc, onExp(exp))
+      case DefNode(info, name, value) => removeZero(value.tpe) match {
+        case None => EmptyStmt
+        case Some(t) => DefNode(info, name, onExp(value))
+      }
+      case sx => sx map onStmt
     }
-    case DefNode(info, name, value) => removeZero(value.tpe) match {
-      case None => EmptyStmt
-      case Some(t) => DefNode(info, name, onExp(value))
-    }
-    case sx => sx map onStmt
   }
   private def onModule(m: DefModule): DefModule = {
     val ports = m.ports map (p => (p, removeZero(p.tpe))) collect {
@@ -63,6 +70,8 @@ object ZeroWidth extends Pass {
     }
   }
   def run(c: Circuit): Circuit = {
+    println("Before ZeroWidth")
+    println(c.serialize)
     InferTypes.run(c.copy(modules = c.modules map onModule))
   }
 }
