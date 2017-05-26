@@ -383,7 +383,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val attachSynAssigns = ArrayBuffer.empty[Seq[Any]]
       val attachAliases = ArrayBuffer.empty[Seq[Any]]
       val at_clock = mutable.LinkedHashMap[Expression,ArrayBuffer[Seq[Any]]]()
-      val initials = ArrayBuffer[Seq[Any]]()
+      val randDeclares = mutable.HashMap[String, Vector[Seq[Any]]]()
+                                .withDefaultValue(Vector.empty[Seq[Any]])
+      val randInitials = mutable.HashMap[String, Vector[Seq[Any]]]()
+                                .withDefaultValue(Vector.empty[Seq[Any]])
       val simulates = ArrayBuffer[Seq[Any]]()
       def declare(b: String, n: String, t: Type) = t match {
         case tx: VectorType =>
@@ -395,17 +398,36 @@ class VerilogEmitter extends SeqTransform with Emitter {
         assigns += Seq("assign ", e, " = ", value, ";")
       }
 
+      // Generates a declaration for a wire holding a random number
+      // Arguments: the type (ie. bitwidth)
+      // Returns (declaration, init of random, rhs reference to random)
+      def gen_rand(t: Type): (Seq[Any], Seq[Any], Seq[Any]) = {
+        val nx = namespace.newName("_RAND")
+        val rand = VRandom(bitWidth(t))
+        val tx = SIntType(IntWidth(rand.realWidth))
+        val decl = Seq("reg ", nx, " ", tx, ";")
+        val init = Seq(wref(nx, tx), " = ", VRandom(bitWidth(t)), ";")
+        val ref = Seq(nx, "[", bitWidth(t) - 1, ":0]")
+        (decl, init, ref)
+      }
+
       // In simulation, assign garbage under a predicate
       def garbageAssign(e: Expression, syn: Expression, garbageCond: Expression) = {
+        val (decl, init, rand) = gen_rand(syn.tpe)
+        randDeclares("RANDOMIZE_GARBAGE_ASSIGN") :+= decl
+        randInitials("RANDOMIZE_GARBAGE_ASSIGN") :+= init
         assigns += Seq("`ifndef RANDOMIZE_GARBAGE_ASSIGN")
         assigns += Seq("assign ", e, " = ", syn, ";")
         assigns += Seq("`else")
-        assigns += Seq("assign ", e, " = ", garbageCond, " ? ", rand_string(syn.tpe), " : ", syn, ";")
+        assigns += Seq("assign ", e, " = ", garbageCond, " ? ", rand, " : ", syn, ";")
         assigns += Seq("`endif // RANDOMIZE_GARBAGE_ASSIGN")
       }
       def invalidAssign(e: Expression) = {
+        val (decl, init, rand) = gen_rand(e.tpe)
+        randDeclares("RANDOMIZE_INVALID_ASSIGN") :+= decl
+        randInitials("RANDOMIZE_INVALID_ASSIGN") :+= init
         assigns += Seq("`ifdef RANDOMIZE_INVALID_ASSIGN")
-        assigns += Seq("assign ", e, " = ", rand_string(e.tpe), ";")
+        assigns += Seq("assign ", e, " = ", rand, ";")
         assigns += Seq("`endif // RANDOMIZE_INVALID_ASSIGN")
       }
       def update_and_reset(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
@@ -467,31 +489,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
          }
       }
 
-      // Declares an intermediate wire to hold a large enough random number.
-      // Then, return the correct number of bits selected from the random value
-      def rand_string(t: Type) : Seq[Any] = {
-         val nx = namespace.newName("_RAND")
-         val rand = VRandom(bitWidth(t))
-         val tx = SIntType(IntWidth(rand.realWidth))
-         declare("reg",nx, tx)
-         initials += Seq(wref(nx, tx), " = ", VRandom(bitWidth(t)), ";")
-         Seq(nx, "[", bitWidth(t) - 1, ":0]")
-      }
-
       def initialize(e: Expression) = {
-        initials += Seq("`ifdef RANDOMIZE_REG_INIT")
-        initials += Seq(e, " = ", rand_string(e.tpe), ";")
-        initials += Seq("`endif // RANDOMIZE_REG_INIT")
+        val (decl, init, rand) = gen_rand(e.tpe)
+        randDeclares("RANDOMIZE_REG_INIT") :+= decl
+        randInitials("RANDOMIZE_REG_INIT") ++= List(init, Seq(e, " = ", rand, ";"))
       }
 
       def initialize_mem(s: DefMemory) {
         val index = wref("initvar", s.dataType)
-        val rstring = rand_string(s.dataType)
-        initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
-        initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
-        initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE),
-                             " = ", rstring,";")
-        initials += Seq("`endif // RANDOMIZE_MEM_INIT")
+        val (decl, init, rand) = gen_rand(s.dataType)
+        randDeclares("RANDOMIZE_MEM_INIT") :+= decl
+        randInitials("RANDOMIZE_MEM_INIT") ++= Seq(init,
+            Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)"),
+            Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE), " = ", rand,";")
+          )
       }
 
       def simulate(clk: Expression, en: Expression, s: Seq[Any], cond: Option[String]) {
@@ -684,8 +695,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
         }
         emit(Seq(");"))
 
-        if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "initial begin end"))
+        val numRandDecls = randDeclares.values.map(_.size).sum
+        if (declares.isEmpty && assigns.isEmpty) {
+          if (numRandDecls > 0) error("This shouldn't happen")
+          assert(numRandDecls == 0)
+          emit(Seq(tab, "initial begin end"))
+        }
         for (x <- declares) emit(Seq(tab, x))
+        randDeclares.toList.sortBy(_._1).foreach { case (name: String, decls: Seq[Any]) =>
+          if (decls.nonEmpty) {
+            emit(Seq(s"`ifdef $name"))
+            for (x <- decls) { emit(Seq(tab, x)) }
+            emit(Seq(s"`endif // $name"))
+          }
+        }
         for (x <- instdeclares) emit(Seq(tab, x))
         for (x <- assigns) emit(Seq(tab, x))
         if (attachAliases.nonEmpty) {
@@ -697,7 +720,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           for (x <- attachAliases) emit(Seq(tab, x))
           emit(Seq("`endif"))
         }
-        if (initials.nonEmpty) {
+        if (randInitials.values.map(_.size).sum > 0) {
           emit(Seq("`ifdef RANDOMIZE"))
           emit(Seq("  integer initvar;"))
           emit(Seq("  initial begin"))
@@ -707,7 +730,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
           emit(Seq("    `ifndef verilator"))
           emit(Seq("      #0.002 begin end"))
           emit(Seq("    `endif"))
-          for (x <- initials) emit(Seq(tab, x))
+          randInitials.toList.sortBy(_._1).foreach { case (name: String, inits: Seq[Any]) =>
+            if (inits.nonEmpty) {
+              emit(Seq(s"`ifdef $name"))
+              for (x <- inits) { emit(Seq(tab, x)) }
+              emit(Seq(s"`endif // $name"))
+            }
+          }
           emit(Seq("  end"))
           emit(Seq("`endif // RANDOMIZE"))
         }
