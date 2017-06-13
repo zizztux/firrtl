@@ -5,17 +5,20 @@ package passes
 import firrtl.Mappers._
 import firrtl.ir._
 
-// Removes ValidIf as an optimization
+/** Remove ValidIf and replace IsInvalid with a connection to zero */
 object RemoveValidIf extends Pass {
-  // Recursive. Removes ValidIf's
+  // Recursive. Removes ValidIfs
   private def onExp(e: Expression): Expression = {
     e map onExp match {
-      case ValidIf(cond, value, tpe) => value
+      case ValidIf(_, value, _) => value
       case x => x
     }
   }
-  // Recursive.
-  private def onStmt(s: Statement): Statement = s map onStmt map onExp
+  // Recursive. Replaces IsInvalid with connecting zero
+  private def onStmt(s: Statement): Statement = s map onStmt map onExp match {
+    case IsInvalid(info, loc) => Connect(info, loc, Utils.zero)
+    case other => other
+  }
 
   private def onModule(m: DefModule): DefModule = {
     m match {
