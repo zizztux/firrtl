@@ -97,6 +97,7 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
+    passes.ConstProp,
     passes.PadWidths,
     passes.ConstProp,
     passes.Legalize,

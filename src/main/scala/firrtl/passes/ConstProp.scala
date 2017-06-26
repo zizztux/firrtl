@@ -273,7 +273,9 @@ object ConstProp extends Pass {
       val stmtx = s map constPropStmt map constPropExpression
       stmtx match {
         case x: DefNode => nodeMap(x.name) = x.value
-        case Connect(_, WRef(wname, _, WireKind, _), expr) => nodeMap(wname) = expr
+        case Connect(_, WRef(wname, wtpe, WireKind, _), expr) =>
+          val exprx = constPropExpression(pad(expr, wtpe))
+          nodeMap(wname) = exprx
         case _ =>
       }
       stmtx
