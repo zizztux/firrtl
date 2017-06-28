@@ -27,6 +27,7 @@ script:
   # FIRRTL Tests
   - verilator --version
   - cd $TRAVIS_BUILD_DIR
+  - bash mem.sh &
   - sbt clean test assembly publish-local
   # Chisel 3 Tests
   - bash .run_chisel_tests.sh
