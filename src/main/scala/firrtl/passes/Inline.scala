@@ -84,6 +84,7 @@ class InlineInstances extends Transform {
       }
 
       moduleNames.foreach{mn => checkExists(mn.name)}
+      instanceNames.foreach{in => checkExists(in.module.name)}
       if (errors.nonEmpty) throw new PassExceptions(errors)
       moduleNames.foreach{mn => checkExternal(mn.name)}
       if (errors.nonEmpty) throw new PassExceptions(errors)
