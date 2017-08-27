@@ -10,11 +10,14 @@ import firrtl.Mappers._
 
 
 /** A class representing the instance hierarchy of a working IR Circuit
-  * 
+  *
   * @constructor constructs an instance graph from a Circuit
   * @param c the Circuit to analyze
+  * @param includeSubhierarchies Keep track of module chains not connected to the top.
+  *  Each non-connected module will be treated as a potential top-level in its
+  *  own right in the resulting instanceGraph.
   */
-class InstanceGraph(c: Circuit) {
+class InstanceGraph(c: Circuit, includeSubhierarchies: Boolean = true) {
 
   private def collectInstances(insts: mutable.Set[WDefInstance])(s: Statement): Statement = s match {
     case i: WDefInstance =>
@@ -35,14 +38,31 @@ class InstanceGraph(c: Circuit) {
   private val instanceQueue = new mutable.Queue[WDefInstance]
   private val topInstance = WDefInstance(c.main,c.main) // top instance
   instanceQueue.enqueue(topInstance)
-  while (!instanceQueue.isEmpty) {
-    val current = instanceQueue.dequeue
-    instanceGraph.addVertex(current)
-    for (child <- childInstances(current.module)) {
-      if (!instanceGraph.contains(child)) {
-        instanceQueue.enqueue(child)
+
+  // Used to keep track of modules not connected to the top.
+  private var modules = mutable.HashMap() ++ moduleMap
+
+  private def processInstanceQueue(): Unit = {
+    while (!instanceQueue.isEmpty) {
+      val current = instanceQueue.dequeue
+      instanceGraph.addVertex(current)
+      modules.remove(current.module)
+      for (child <- childInstances(current.module)) {
+        if (!instanceGraph.contains(child)) {
+          instanceQueue.enqueue(child)
+        }
+        instanceGraph.addEdge(current,child)
       }
-      instanceGraph.addEdge(current,child)
+    }
+  }
+
+  processInstanceQueue()
+  // If we want to include the remaining modules, add them to the graph.
+  if (includeSubhierarchies) {
+    for ((name, m) <- modules) {
+      // Treat each of the leftover modules as a potential top-level.
+      instanceQueue.enqueue(WDefInstance(name, name))
+      processInstanceQueue()
     }
   }
 

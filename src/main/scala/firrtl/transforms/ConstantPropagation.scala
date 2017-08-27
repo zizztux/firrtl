@@ -397,7 +397,8 @@ class ConstantPropagation extends Transform {
     }
 
   private def run(c: Circuit, dontTouchMap: Map[String, Set[String]]): Circuit = {
-    val iGraph = (new InstanceGraph(c)).graph
+    // TODO: how to run ConstProp only on a certain submodule?
+    val iGraph = (new InstanceGraph(c, true)).graph
     val moduleDeps = iGraph.edges.map { case (mod, children) =>
       mod.module -> children.map(i => i.name -> i.module).toMap
     }
